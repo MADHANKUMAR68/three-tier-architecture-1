@@ -1,0 +1,40 @@
+name: CI/CD Three-Tier App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build Docker image
+        run: docker build -t madhan68/three-tier-backend:latest ./backend
+
+      - name: Push Docker image
+        run: docker push madhan68/three-tier-backend:latest
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker pull madhan68/three-tier-backend:latest
+            docker stop $(docker ps -q --filter ancestor=madhan68/three-tier-backend:latest) || true
+            docker run -d -p 3000:3000 madhan68/three-tier-backend:latest
